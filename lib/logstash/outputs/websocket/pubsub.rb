@@ -17,6 +17,8 @@ class LogStash::Outputs::WebSocket::Pubsub
       failed = []
       @subscribers.each do |subscriber|
         begin
+          #@logger.info("Publishing to #{subscriber}, message: #{JSON.parse(object)["message"]}")
+          #raise "Failing on purpose" if(JSON.parse(object)["message"] == "fail")
           subscriber.call(object)
         rescue => e
           @logger.error("Failed to publish to subscriber", :subscriber => subscriber, :exception => e)
@@ -25,21 +27,26 @@ class LogStash::Outputs::WebSocket::Pubsub
       end
 
       failed.each do |subscriber|
+        @logger.warn("Dropping the subscriber: ", :subscriber => subscriber)
         @subscribers.delete(subscriber)
       end
     end # @subscribers_lock.synchronize
   end # def Pubsub
 
   def subscribe(&block)
+    #@logger.info("Subscribing a client")
     queue = Queue.new
     @subscribers_lock.synchronize do
       @subscribers << proc do |event|
+        #@logger.debug("Adding an event to queue : #{event}")
         queue << event
       end
     end
 
     while true
-      block.call(queue.pop)
+      event = queue.pop
+      #@logger.info("Processing the queue event #{event}")
+      block.call(event)
     end
   end # def subscribe
 end # class LogStash::Outputs::WebSocket::Pubsub
